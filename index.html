@@ -218,9 +218,9 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-300 mb-1">صورة سبب العطل (واضحة وعالية الدقة للفحص)</label>
+                    <label class="block text-xs font-medium text-gray-300 mb-1">صورة سبب العطل (جودة عالية تصل إلى 3 ميجابايت)</label>
                     <input type="file" id="faultImage" accept="image/*" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300 file:ml-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-gray-900 hover:file:bg-amber-400">
-                    <p class="text-[11px] text-gray-400 mt-1">💡 يتم حفظ الصور بدقة عالية تتيح لك تكبيرها لاحقاً ومعرفة تفاصيل القطع والأعطال بدقة.</p>
+                    <p class="text-[11px] text-gray-400 mt-1">💡 تم السماح برفع الصور بجودتها العادية (حتى 3 ميجابايت) لتظهر تفاصيل الأسلاك والقطع بوضوح تام.</p>
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t border-gray-700">
                     <button type="button" onclick="closeModal()" class="bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium px-4 py-2 rounded-lg text-sm transition">إلغاء</button>
@@ -251,7 +251,7 @@
     <!-- Image Lightbox Modal with Zoom / High-Res View -->
     <div id="imageLightbox" class="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 hidden">
         <div class="absolute top-4 left-4 flex items-center gap-3 z-10">
-            <span class="text-xs text-gray-300 bg-black/60 px-3 py-1.5 rounded-lg border border-gray-700">🔍 انقر على الصورة أو استخدم زووم المتصفح لفحص التفاصيل الدقيقة</span>
+            <span class="text-xs text-gray-300 bg-black/60 px-3 py-1.5 rounded-lg border border-gray-700">🔍 انقر على الصورة لتكبيرها وفحص تفاصيل العطل</span>
             <button onclick="closeImagePreview()" class="bg-gray-800 hover:bg-gray-700 text-white text-xl w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center transition">
                 <i class="fa-solid fa-xmark"></i>
             </button>
@@ -287,11 +287,9 @@
 
         let app, db, auth;
         let faults = [];
-        let pendingDeleteId = null;
 
         const modal = document.getElementById('faultModal');
         const detailsModal = document.getElementById('detailsModal');
-        const deleteModal = document.getElementById('deleteModal');
         const detailsContent = document.getElementById('detailsContent');
         const imageLightbox = document.getElementById('imageLightbox');
         const lightboxImg = document.getElementById('lightboxImg');
@@ -401,7 +399,7 @@
             if (!fault) return;
 
             let imageHtml = fault.image 
-                ? `<div class="mt-4"><div class="flex justify-between items-center mb-1"><p class="text-xs font-semibold text-amber-400">صورة سبب العطل (واضحة للفحص):</p><span class="text-[10px] text-gray-400">انقر للتكبير الفائق</span></div><img src="${fault.image}" onclick="openImagePreview('${fault.image}')" class="w-full h-64 object-cover rounded-xl border border-gray-700 cursor-pointer hover:border-amber-500 shadow-md transition"></div>` 
+                ? `<div class="mt-4"><div class="flex justify-between items-center mb-1"><p class="text-xs font-semibold text-amber-400">صورة سبب العطل (وضوح عادي):</p><span class="text-[10px] text-gray-400">انقر للتكبير</span></div><img src="${fault.image}" onclick="openImagePreview('${fault.image}')" class="w-full h-64 object-cover rounded-xl border border-gray-700 cursor-pointer hover:border-amber-500 shadow-md transition"></div>` 
                 : `<p class="text-xs text-gray-500 italic mt-2">لا توجد صورة مرفقة للعطل</p>`;
 
             detailsContent.innerHTML = `
@@ -456,7 +454,6 @@
 
         window.deleteFault = function(id, event) {
             if (event) event.stopPropagation();
-            pendingDeleteId = id;
             if (confirm('هل أنت متأكد من حذف سجل هذا العطل نهائياً من السحابة؟')) {
                 executeDelete(id);
             }
@@ -474,8 +471,12 @@
             }
         }
 
-        // دالة ضغط الصور بدقة متوسطة ومتوازنة (واضحة لفحص العطل وفي نفس الوقت موفرة للمساحة والخطط المجانية)
-        function processBalancedImage(file, callback) {
+        // معالجة الصور بالجودة العادية (تسمح حتى 3 ميجابايت مع تحجيم خفيف للحفاظ على استقرار التطبيق)
+        function processNormalImage(file, callback) {
+            if (file.size > 3 * 1024 * 1024) {
+                showToast('حجم الصورة أكبر من 3 ميجابايت، يرجى اختيار صورة أصغر', 'error');
+                return;
+            }
             const reader = new FileReader();
             reader.onload = function(e) {
                 const img = new Image();
@@ -483,8 +484,8 @@
                     let width = img.width;
                     let height = img.height;
                     
-                    // ضبط أقصى أبعاد على 700 بكسل (حجم متوازن جداً وواضح لمعاينة الأعطال دون استهلاك مساحة كبيرة)
-                    const maxDim = 700;
+                    // أبعاد واسعة تسمح بالحفاظ على الوضوح العادي
+                    const maxDim = 1280;
                     if (width > maxDim || height > maxDim) {
                         if (width > height) {
                             height = Math.round((height * maxDim) / width);
@@ -501,8 +502,8 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // جودة 0.7 توفر وضوحاً ممتازاً لتفاصيل الكهرباء مع حجم ملف صغير ومناسب للخطة المجانية
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    // جودة طبيعية 0.85
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                     callback(dataUrl);
                 };
                 img.src = e.target.result;
@@ -562,8 +563,10 @@
             };
 
             if (imageInput.files && imageInput.files[0]) {
-                processBalancedImage(imageInput.files[0], async (balancedDataUrl) => {
-                    await processSave(balancedDataUrl);
+                processNormalImage(imageInput.files[0], async (normalDataUrl) => {
+                    if (normalDataUrl) {
+                        await processSave(normalDataUrl);
+                    }
                 });
             } else {
                 const existing = id ? faults.find(f => f.id === id) : null;
