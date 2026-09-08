@@ -474,7 +474,7 @@
             }
         }
 
-        // دالة ضغط الصور بدقة متوسطة ومتوازنة (واضحة لفحص العطل وفي نفس الوقت موفرة للمساحة والخطط المجانية)
+        // دالة ضغط الصور بدقة 360 بكسل (متوازنة جداً: واضحة لمعاينة وفحص العطل وموفرة لمساحة الخطة المجانية)
         function processBalancedImage(file, callback) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -483,8 +483,8 @@
                     let width = img.width;
                     let height = img.height;
                     
-                    // ضبط أقصى أبعاد على 700 بكسل (حجم متوازن جداً وواضح لمعاينة الأعطال دون استهلاك مساحة كبيرة)
-                    const maxDim = 700;
+                    // ضبط أقصى أبعاد على 360 بكسل (حجم مثالي موفر جداً للمساحة مع الحفاظ على وضوح العطل)
+                    const maxDim = 360;
                     if (width > maxDim || height > maxDim) {
                         if (width > height) {
                             height = Math.round((height * maxDim) / width);
@@ -501,7 +501,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // جودة 0.7 توفر وضوحاً ممتازاً لتفاصيل الكهرباء مع حجم ملف صغير ومناسب للخطة المجانية
+                    // جودة 0.7 تضمن وضوح التفاصيل مع حجم ملف صغير جداً (KB معدودة)
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                     callback(dataUrl);
                 };
