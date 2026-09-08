@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة أعطال الكهرباء (سحابي متزامن - Firebase)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 shadow-md">
+        <div class="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-500 text-gray-900 p-3 rounded-xl shadow-lg font-black text-2xl">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-wide">نظام إدارة أعطال الكهرباء</h1>
+                    <p class="text-xs text-gray-400">قسم الصيانة الكهربائية - مزامنة سحابية كاملة ووضوح عالي للصور</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <span id="connectionStatus" class="text-xs px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-2">
+                    <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> جاري الاتصال بالسحابة...
+                </span>
+                <button onclick="openModal()" class="bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold px-5 py-2.5 rounded-lg shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> تسجيل عطل جديد
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8 flex-grow">
+        
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="bg-gray-800 border border-gray-700 p-5 rounded-xl shadow flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">إجمالي الأعطال</p>
+                    <h3 id="statTotal" class="text-3xl font-black mt-1">0</h3>
+                </div>
+                <div class="bg-blue-500/20 text-blue-400 p-3 rounded-xl text-xl">
+                    <i class="fa-solid fa-list-check"></i>
+                </div>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-5 rounded-xl shadow flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">قيد المعالجة</p>
+                    <h3 id="statPending" class="text-3xl font-black mt-1 text-amber-400">0</h3>
+                </div>
+                <div class="bg-amber-500/20 text-amber-400 p-3 rounded-xl text-xl">
+                    <i class="fa-solid fa-clock"></i>
+                </div>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-5 rounded-xl shadow flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">تم الإصلاح</p>
+                    <h3 id="statResolved" class="text-3xl font-black mt-1 text-emerald-400">0</h3>
+                </div>
+                <div class="bg-emerald-500/20 text-emerald-400 p-3 rounded-xl text-xl">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-5 rounded-xl shadow flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400 font-medium">أعطال حرجة</p>
+                    <h3 id="statCritical" class="text-3xl font-black mt-1 text-rose-400">0</h3>
+                </div>
+                <div class="bg-rose-500/20 text-rose-400 p-3 rounded-xl text-xl">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters & Search -->
+        <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow mb-6 flex flex-col md:flex-row gap-4 justify-between items-center">
+            <div class="w-full md:w-1/3 relative">
+                <span class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
+                    <i class="fa-solid fa-search"></i>
+                </span>
+                <input type="text" id="searchInput" oninput="filterFaults()" placeholder="ابحث برقم الماكينة، القسم، أو الفني..." class="w-full bg-gray-900 border border-gray-700 rounded-lg pr-10 pl-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+            </div>
+            <div class="flex flex-wrap gap-3 w-full md:w-auto justify-end">
+                <select id="statusFilter" onchange="filterFaults()" class="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                    <option value="all">جميع الحالات</option>
+                    <option value="قيد المعالجة">قيد المعالجة</option>
+                    <option value="تم الإصلاح">تم الإصلاح</option>
+                </select>
+                <select id="priorityFilter" onchange="filterFaults()" class="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                    <option value="all">جميع مستويات الأولوية</option>
+                    <option value="عالية جداً">عالية جداً</option>
+                    <option value="متوسطة">متوسطة</option>
+                    <option value="منخفضة">منخفضة</option>
+                </select>
+                <select id="shiftFilter" onchange="filterFaults()" class="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-amber-500">
+                    <option value="all">جميع الورادي</option>
+                    <option value="الوردية الأولى">الوردية الأولى</option>
+                    <option value="الوردية الثانية">الوردية الثانية</option>
+                    <option value="الوردية الثالثة">الوردية الثالثة</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Faults Table / List -->
+        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right border-collapse">
+                    <thead>
+                        <tr class="bg-gray-700/50 text-gray-300 text-xs uppercase tracking-wider border-b border-gray-700">
+                            <th class="py-3 px-4">رقم / اسم الماكينة</th>
+                            <th class="py-3 px-4">القسم</th>
+                            <th class="py-3 px-4">الوردية</th>
+                            <th class="py-3 px-4">زمان العطلة</th>
+                            <th class="py-3 px-4">الأولوية</th>
+                            <th class="py-3 px-4">الفني المسؤول</th>
+                            <th class="py-3 px-4">الحالة</th>
+                            <th class="py-3 px-4">تاريخ التبليغ</th>
+                            <th class="py-3 px-4 text-center">الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="faultsTableBody" class="divide-y divide-gray-700 text-sm">
+                        <!-- Dynamic Rows Here -->
+                    </tbody>
+                </table>
+            </div>
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden text-center py-12">
+                <div class="text-gray-500 text-5xl mb-3">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <p class="text-gray-400 font-medium">لا توجد سجلات أعطال مسجلة بالسحابة حالياً</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 border-t border-gray-700 text-center py-4 text-xs text-gray-400 mt-auto">
+        جميع الحقوق محفوظة - نظام متابعة أعطال قسم الكهرباء السحابي &copy; 2026
+    </footer>
+
+    <!-- Add/Edit Modal -->
+    <div id="faultModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-gray-800 border border-gray-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden transform transition-all max-h-[90vh] overflow-y-auto">
+            <div class="bg-gray-700/50 px-6 py-4 flex justify-between items-center border-b border-gray-700 sticky top-0 z-10">
+                <h3 id="modalTitle" class="font-bold text-lg text-amber-400">تسجيل عطل جديد للماكينة</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <form id="faultForm" onsubmit="saveFault(event)" class="p-6 space-y-4">
+                <input type="hidden" id="faultId">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">اسم أو رقم الماكينة *</label>
+                        <input type="text" id="machineName" required placeholder="مثال: ماكينة لحام رقم 4" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">القسم / الخط الإنتاجي *</label>
+                        <input type="text" id="department" required placeholder="مثال: قسم التجميع" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">الوردية *</label>
+                        <select id="shift" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            <option value="الوردية الأولى">الوردية الأولى</option>
+                            <option value="الوردية الثانية">الوردية الثانية</option>
+                            <option value="الوردية الثالثة">الوردية الثالثة</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">تاريخ حدوث العطل *</label>
+                        <input type="date" id="faultDate" required class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-300 mb-1">وصف العطل الكهربائي بالتفصيل *</label>
+                    <textarea id="description" required rows="3" placeholder="اكتب تفاصيل المشكلة الكهربائية..." class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"></textarea>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">مستوى الأولوية *</label>
+                        <select id="priority" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            <option value="منخفضة">منخفضة</option>
+                            <option value="متوسطة">متوسطة</option>
+                            <option value="عالية جداً">عالية جداً</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">الفني المسؤول *</label>
+                        <input type="text" id="technician" required placeholder="اسم الفني" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">حالة الإصلاح *</label>
+                        <select id="status" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                            <option value="قيد المعالجة">قيد المعالجة</option>
+                            <option value="تم الإصلاح">تم الإصلاح</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">زمان العطلة (المدة المستغرقة) *</label>
+                        <input type="text" id="faultTime" required placeholder="مثال: 30 دقيقة، ساعة..." class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-300 mb-1">صورة سبب العطل (واضحة وعالية الدقة للفحص)</label>
+                    <input type="file" id="faultImage" accept="image/*" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-300 file:ml-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-gray-900 hover:file:bg-amber-400">
+                    <p class="text-[11px] text-gray-400 mt-1">💡 يتم حفظ الصور بدقة عالية تتيح لك تكبيرها لاحقاً ومعرفة تفاصيل القطع والأعطال بدقة.</p>
+                </div>
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                    <button type="button" onclick="closeModal()" class="bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium px-4 py-2 rounded-lg text-sm transition">إلغاء</button>
+                    <button type="submit" id="saveBtn" class="bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold px-6 py-2 rounded-lg text-sm transition">حفظ العطل</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Details View Modal -->
+    <div id="detailsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-gray-800 border border-gray-700 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden">
+            <div class="bg-gray-700/50 px-6 py-4 flex justify-between items-center border-b border-gray-700">
+                <h3 class="font-bold text-lg text-amber-400">تفاصيل العطل الكاملة</h3>
+                <button onclick="closeDetailsModal()" class="text-gray-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div id="detailsContent" class="p-6 space-y-4 text-sm text-gray-300 max-h-[75vh] overflow-y-auto">
+                <!-- Dynamically Filled -->
+            </div>
+            <div class="bg-gray-700/30 px-6 py-3 border-t border-gray-700 flex justify-end">
+                <button onclick="closeDetailsModal()" class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-4 py-2 rounded-lg text-sm transition">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Lightbox Modal with Zoom / High-Res View -->
+    <div id="imageLightbox" class="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4 hidden">
+        <div class="absolute top-4 left-4 flex items-center gap-3 z-10">
+            <span class="text-xs text-gray-300 bg-black/60 px-3 py-1.5 rounded-lg border border-gray-700">🔍 انقر على الصورة أو استخدم زووم المتصفح لفحص التفاصيل الدقيقة</span>
+            <button onclick="closeImagePreview()" class="bg-gray-800 hover:bg-gray-700 text-white text-xl w-10 h-10 rounded-full border border-gray-600 flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="relative max-w-6xl max-h-[90vh] overflow-auto flex items-center justify-center p-2">
+            <img id="lightboxImg" src="" class="max-w-full max-h-[85vh] rounded-lg border border-gray-700 shadow-2xl object-contain transition-transform duration-200 cursor-zoom-in" onclick="toggleZoom(this)">
+        </div>
+    </div>
+
+    <!-- Custom Notification / Toast -->
+    <div id="toast" class="fixed bottom-5 left-5 bg-gray-800 border border-gray-700 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <span id="toastIcon" class="text-emerald-400 text-lg"></span>
+        <span id="toastMessage" class="text-sm font-medium"></span>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'electricity-3f054-app';
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwbtIgf3TpxYhjpziZM3JDuNvRiXpca3c",
+            authDomain: "electricity-3f054.firebaseapp.com",
+            databaseURL: "https://electricity-3f054-default-rtdb.firebaseio.com",
+            projectId: "electricity-3f054",
+            storageBucket: "electricity-3f054.firebasestorage.app",
+            messagingSenderId: "585590144105",
+            appId: "1:585590144105:web:32c5054e9d55400e20f6f8",
+            measurementId: "G-B2WNX7ZJ4Z"
+        };
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+
+        let app, db, auth;
+        let faults = [];
+        let pendingDeleteId = null;
+
+        const modal = document.getElementById('faultModal');
+        const detailsModal = document.getElementById('detailsModal');
+        const deleteModal = document.getElementById('deleteModal');
+        const detailsContent = document.getElementById('detailsContent');
+        const imageLightbox = document.getElementById('imageLightbox');
+        const lightboxImg = document.getElementById('lightboxImg');
+        const modalTitle = document.getElementById('modalTitle');
+        const faultForm = document.getElementById('faultForm');
+        const faultsTableBody = document.getElementById('faultsTableBody');
+        const emptyState = document.getElementById('emptyState');
+        const searchInput = document.getElementById('searchInput');
+        const statusFilter = document.getElementById('statusFilter');
+        const priorityFilter = document.getElementById('priorityFilter');
+        const shiftFilter = document.getElementById('shiftFilter');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const statusDot = document.getElementById('statusDot');
+
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            const authenticateUser = async () => {
+                try {
+                    if (initialAuthToken && typeof initialAuthToken === 'string' && initialAuthToken.length > 20) {
+                        try {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } catch (tokenErr) {
+                            await signInAnonymously(auth);
+                        }
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    connectionStatus.className = 'text-xs px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-2';
+                    statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                    connectionStatus.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> متصل بالسحابة ومتزامن';
+                    
+                    initFirestoreListener();
+                } catch (authErr) {
+                    console.error("Auth error:", authErr);
+                    connectionStatus.className = 'text-xs px-3 py-1.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-2';
+                    statusDot.className = 'w-2 h-2 rounded-full bg-rose-400';
+                    connectionStatus.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400"></span> خطأ في المصادقة السحابية';
+                }
+            };
+
+            authenticateUser();
+        } catch (e) {
+            console.error("Firebase init error:", e);
+        }
+
+        function initFirestoreListener() {
+            if (!db) return;
+            const faultsRef = collection(db, 'artifacts', appId, 'public', 'data', 'faults');
+            
+            onSnapshot(faultsRef, (snapshot) => {
+                faults = [];
+                snapshot.forEach((docSnap) => {
+                    faults.push({
+                        id: docSnap.id,
+                        ...docSnap.data()
+                    });
+                });
+                faults.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+                filterFaults();
+                updateStats();
+            }, (error) => {
+                console.error("Firestore snapshot error:", error);
+                showToast('حدث خطأ في مزامنة البيانات السحابية', 'error');
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const faultDateEl = document.getElementById('faultDate');
+            if (faultDateEl) faultDateEl.valueAsDate = new Date();
+        });
+
+        window.openModal = function(editId = null) {
+            modal.classList.remove('hidden');
+            if (editId) {
+                modalTitle.textContent = 'تعديل بيانات العطل';
+                const fault = faults.find(f => f.id === editId);
+                if (fault) {
+                    document.getElementById('faultId').value = fault.id;
+                    document.getElementById('machineName').value = fault.machineName;
+                    document.getElementById('department').value = fault.department;
+                    document.getElementById('shift').value = fault.shift || 'الوردية الأولى';
+                    document.getElementById('faultDate').value = fault.faultDate || new Date().toISOString().split('T')[0];
+                    document.getElementById('description').value = fault.description;
+                    document.getElementById('priority').value = fault.priority;
+                    document.getElementById('technician').value = fault.technician;
+                    document.getElementById('status').value = fault.status;
+                    document.getElementById('faultTime').value = fault.faultTime || '';
+                }
+            } else {
+                modalTitle.textContent = 'تسجيل عطل جديد للماكينة';
+                faultForm.reset();
+                document.getElementById('faultId').value = '';
+                const faultDateEl = document.getElementById('faultDate');
+                if (faultDateEl) faultDateEl.valueAsDate = new Date();
+            }
+        };
+
+        window.closeModal = function() {
+            modal.classList.add('hidden');
+        };
+
+        window.openDetailsModal = function(id) {
+            const fault = faults.find(f => f.id === id);
+            if (!fault) return;
+
+            let imageHtml = fault.image 
+                ? `<div class="mt-4"><div class="flex justify-between items-center mb-1"><p class="text-xs font-semibold text-amber-400">صورة سبب العطل (واضحة للفحص):</p><span class="text-[10px] text-gray-400">انقر للتكبير الفائق</span></div><img src="${fault.image}" onclick="openImagePreview('${fault.image}')" class="w-full h-64 object-cover rounded-xl border border-gray-700 cursor-pointer hover:border-amber-500 shadow-md transition"></div>` 
+                : `<p class="text-xs text-gray-500 italic mt-2">لا توجد صورة مرفقة للعطل</p>`;
+
+            detailsContent.innerHTML = `
+                <div class="grid grid-cols-2 gap-3 bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
+                    <div><span class="text-xs text-gray-400 block">الماكينة:</span> <strong class="text-white">${fault.machineName}</strong></div>
+                    <div><span class="text-xs text-gray-400 block">القسم:</span> <strong class="text-white">${fault.department}</strong></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
+                    <div><span class="text-xs text-gray-400 block">الوردية:</span> <strong class="text-white">${fault.shift || '-'}</strong></div>
+                    <div><span class="text-xs text-gray-400 block">تاريخ الحدوث:</span> <strong class="text-white">${fault.faultDate || '-'}</strong></div>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 block mb-1">وصف العطل:</span>
+                    <p class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-gray-200 leading-relaxed">${fault.description}</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3 bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
+                    <div><span class="text-xs text-gray-400 block">زمان العطلة (المدة):</span> <strong class="text-amber-400">${fault.faultTime}</strong></div>
+                    <div><span class="text-xs text-gray-400 block">الفني المسؤول:</span> <strong class="text-white">${fault.technician}</strong></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 bg-gray-900/50 p-3 rounded-xl border border-gray-700/50">
+                    <div><span class="text-xs text-gray-400 block">الأولوية:</span> <strong class="text-white">${fault.priority}</strong></div>
+                    <div><span class="text-xs text-gray-400 block">الحالة:</span> <strong class="text-white">${fault.status}</strong></div>
+                </div>
+                ${imageHtml}
+            `;
+            detailsModal.classList.remove('hidden');
+        };
+
+        window.closeDetailsModal = function() {
+            detailsModal.classList.add('hidden');
+        };
+
+        window.openImagePreview = function(src) {
+            lightboxImg.src = src;
+            lightboxImg.style.transform = 'scale(1)';
+            imageLightbox.classList.remove('hidden');
+        };
+
+        window.closeImagePreview = function() {
+            imageLightbox.classList.add('hidden');
+        };
+
+        window.toggleZoom = function(img) {
+            if (img.style.transform === 'scale(1.8)') {
+                img.style.transform = 'scale(1)';
+                img.style.cursor = 'zoom-in';
+            } else {
+                img.style.transform = 'scale(1.8)';
+                img.style.cursor = 'zoom-out';
+            }
+        };
+
+        window.deleteFault = function(id, event) {
+            if (event) event.stopPropagation();
+            pendingDeleteId = id;
+            if (confirm('هل أنت متأكد من حذف سجل هذا العطل نهائياً من السحابة؟')) {
+                executeDelete(id);
+            }
+        };
+
+        async function executeDelete(id) {
+            if (!db) return;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'faults', id);
+                await deleteDoc(docRef);
+                showToast('تم حذف سجل العطل من السحابة بنجاح', 'error');
+            } catch (err) {
+                console.error("Delete error:", err);
+                showToast('فشل في حذف السجل', 'error');
+            }
+        }
+
+        // دالة ضغط الصور بدقة متوسطة ومتوازنة (واضحة لفحص العطل وفي نفس الوقت موفرة للمساحة والخطط المجانية)
+        function processBalancedImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // ضبط أقصى أبعاد على 700 بكسل (حجم متوازن جداً وواضح لمعاينة الأعطال دون استهلاك مساحة كبيرة)
+                    const maxDim = 700;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // جودة 0.7 توفر وضوحاً ممتازاً لتفاصيل الكهرباء مع حجم ملف صغير ومناسب للخطة المجانية
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    callback(dataUrl);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        window.saveFault = async function(e) {
+            e.preventDefault();
+            if (!auth || !auth.currentUser) {
+                showToast('لم يتم الاتصال بقاعدة البيانات بعد', 'error');
+                return;
+            }
+
+            const id = document.getElementById('faultId').value;
+            const machineName = document.getElementById('machineName').value;
+            const department = document.getElementById('department').value;
+            const shift = document.getElementById('shift').value;
+            const faultDate = document.getElementById('faultDate').value;
+            const description = document.getElementById('description').value;
+            const priority = document.getElementById('priority').value;
+            const technician = document.getElementById('technician').value;
+            const status = document.getElementById('status').value;
+            const faultTime = document.getElementById('faultTime').value;
+            const imageInput = document.getElementById('faultImage');
+
+            const now = new Date();
+            const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            const processSave = async (imageUrl = '') => {
+                try {
+                    const recordId = id ? id : 'fault_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'faults', recordId);
+                    
+                    const existing = id ? faults.find(f => f.id === id) : null;
+                    
+                    await setDoc(docRef, {
+                        machineName,
+                        department,
+                        shift,
+                        faultDate,
+                        description,
+                        priority,
+                        technician,
+                        status,
+                        faultTime,
+                        image: imageUrl || (existing ? existing.image : ''),
+                        date: existing ? existing.date : formattedDate
+                    });
+
+                    showToast(id ? 'تم تحديث بيانات العطل في السحابة' : 'تم تسجيل العطل الجديد سحابياً', 'success');
+                    closeModal();
+                } catch (err) {
+                    console.error("Save error:", err);
+                    showToast('حدث خطأ أثناء الحفظ بالسحابة', 'error');
+                }
+            };
+
+            if (imageInput.files && imageInput.files[0]) {
+                processBalancedImage(imageInput.files[0], async (balancedDataUrl) => {
+                    await processSave(balancedDataUrl);
+                });
+            } else {
+                const existing = id ? faults.find(f => f.id === id) : null;
+                await processSave(existing ? existing.image : '');
+            }
+        };
+
+        window.filterFaults = function() {
+            const query = searchInput.value.toLowerCase();
+            const sFilter = statusFilter.value;
+            const pFilter = priorityFilter.value;
+            const shFilter = shiftFilter.value;
+
+            const filtered = faults.filter(f => {
+                const matchesQuery = (f.machineName || '').toLowerCase().includes(query) || 
+                                     (f.department || '').toLowerCase().includes(query) || 
+                                     (f.technician || '').toLowerCase().includes(query) ||
+                                     (f.description || '').toLowerCase().includes(query);
+                const matchesStatus = sFilter === 'all' || f.status === sFilter;
+                const matchesPriority = pFilter === 'all' || f.priority === pFilter;
+                const matchesShift = shFilter === 'all' || f.shift === shFilter;
+
+                return matchesQuery && matchesStatus && matchesPriority && matchesShift;
+            });
+
+            renderTable(filtered);
+        };
+
+        function renderTable(data) {
+            faultsTableBody.innerHTML = '';
+            if (data.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            data.forEach(f => {
+                let priorityBadge = '';
+                if (f.priority === 'عالية جداً') priorityBadge = 'bg-rose-500/20 text-rose-400 border border-rose-500/30';
+                else if (f.priority === 'متوسطة') priorityBadge = 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+                else priorityBadge = 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
+
+                let statusBadge = f.status === 'تم الإصلاح' 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-700/30 transition cursor-pointer';
+                tr.onclick = () => openDetailsModal(f.id);
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-bold text-white">${f.machineName}</td>
+                    <td class="py-3 px-4 text-gray-300">${f.department}</td>
+                    <td class="py-3 px-4 text-gray-300">${f.shift || '-'}</td>
+                    <td class="py-3 px-4 text-amber-400 font-semibold">${f.faultTime}</td>
+                    <td class="py-3 px-4"><span class="px-2.5 py-1 rounded-full text-xs font-semibold ${priorityBadge}">${f.priority}</span></td>
+                    <td class="py-3 px-4 text-gray-300">${f.technician}</td>
+                    <td class="py-3 px-4"><span class="px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadge}">${f.status}</span></td>
+                    <td class="py-3 px-4 text-xs text-gray-400">${f.faultDate || f.date}</td>
+                    <td class="py-3 px-4 text-center" onclick="event.stopPropagation()">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="openDetailsModal('${f.id}')" class="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white p-2 rounded-lg text-xs transition" title="عرض التفاصيل">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            <button onclick="openModal('${f.id}')" class="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white p-2 rounded-lg text-xs transition" title="تعديل">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button onclick="deleteFault('${f.id}', event)" class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white p-2 rounded-lg text-xs transition" title="حذف">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                faultsTableBody.appendChild(tr);
+            });
+        }
+
+        function updateStats() {
+            const total = faults.length;
+            const pending = faults.filter(f => f.status === 'قيد المعالجة').length;
+            const resolved = faults.filter(f => f.status === 'تم الإصلاح').length;
+            const critical = faults.filter(f => f.priority === 'عالية جداً').length;
+
+            const statTotal = document.getElementById('statTotal');
+            const statPending = document.getElementById('statPending');
+            const statResolved = document.getElementById('statResolved');
+            const statCritical = document.getElementById('statCritical');
+
+            if (statTotal) statTotal.textContent = total;
+            if (statPending) statPending.textContent = pending;
+            if (statResolved) statResolved.textContent = resolved;
+            if (statCritical) statCritical.textContent = critical;
+        }
+
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            if (!toast || !toastMessage || !toastIcon) return;
+
+            toastMessage.textContent = message;
+            toastIcon.innerHTML = type === 'success' 
+                ? '<i class="fa-solid fa-circle-check text-emerald-400"></i>' 
+                : '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>';
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
